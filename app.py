@@ -1,3 +1,14 @@
+import requests
+import streamlit as st
+
+
+BACKEND_URL = "https://behavior-backend-gihn.onrender.com"
+
+if st.button("Test backend connection"):
+    r = requests.get(BACKEND_URL)
+    st.write("Status code:", r.status_code)
+    st.write("Response:", r.text)
+    
 from fastapi import FastAPI
 from pydantic import BaseModel
 from datetime import datetime
