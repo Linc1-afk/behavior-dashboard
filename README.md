@@ -1,7 +1,7 @@
 # Behavior Intelligence Dashboard
 
 ## Overview
-The Behavior Intelligence Dashboard is a real-time monitoring system that detects risky behavior based on user events. High-risk actions are automatically flagged and displayed on a live dashboard for human review.
+The Behavior Intelligence Dashboard is a real-time monitoring system that detects risky behavior based on user events. High-risk activity are automatically flagged and displayed on a live dashboard for human review.
 
 ## Features
 - Real-time event ingestion via FastAPI backend

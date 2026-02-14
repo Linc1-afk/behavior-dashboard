@@ -1,63 +1,52 @@
-import streamlit as st
-import requests
-import pandas as pd
-
-BACKEND_URL = "http://localhost:8000"  # later this becomes your deployed backend URL
-
-# ---------------- LOGIN ----------------
-USERS = {
-    "admin": {"password": "admin123", "role": "Admin"},
-    "analyst": {"password": "analyst123", "role": "Analyst"}
-}
-
-def login():
-    st.title("🔐 Behavior Intelligence Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if username in USERS and USERS[username]["password"] == password:
-            st.session_state["logged_in"] = True
-            st.session_state["role"] = USERS[username]["role"]
-            st.experimental_rerun()
-        else:
-            st.error("Invalid credentials")
-
-# ---------------- DASHBOARD ----------------
 def dashboard():
-    st.title("🧠 Behavior Intelligence Dashboard")
-    st.write("Monitoring user behavior in real time")
+    import pandas as pd
+    from datetime import datetime
+    from database import SessionLocal
+    from models import BehaviorHistory
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.experimental_rerun()
+    st.subheader(f"Welcome {st.session_state['user']}")
 
-    try:
-        events = requests.get(f"{BACKEND_URL}/events_summary").json()["events"]
-        df = pd.DataFrame(events)
-    except:
-        st.error("Backend not reachable")
-        return
+    db = SessionLocal()
 
-    st.metric("Total Events", len(df))
+    # Add Activity
+    st.markdown("### ➕ Add Activity")
 
-    if not df.empty:
-        st.subheader("🚨 Active Alerts")
-        alerts = df[df["risk_level"] == "HIGH"]
-        if not alerts.empty:
-            st.dataframe(alerts)
-        else:
-            st.success("No high-risk alerts")
+    activity = st.text_input("Activity", key="activity_input")
+    score = st.number_input("Score", min_value=0, max_value=100, key="score_input")
+    state = st.text_input("State", key="state_input")
 
-        st.subheader("📡 Live Event Feed")
-        st.dataframe(df.sort_values("timestamp", ascending=False))
+    if st.button("Save Activity"):
+        if activity.strip() != "":
+            new_entry = BehaviorHistory(
+                user_email=st.session_state["user"],
+                timestamp=datetime.now(),
+                activity=activity,
+                score=score,
+                state=state
+            )
+            db.add(new_entry)
+            db.commit()
+            st.success("Saved successfully!")
 
-        st.subheader("📊 Risk Level Distribution")
-        st.bar_chart(df["risk_level"].value_counts())
+    # Fetch records ONCE
+    records = db.query(BehaviorHistory).filter(
+        BehaviorHistory.user_email == st.session_state["user"]
+    ).order_by(BehaviorHistory.timestamp.asc()).all()
 
-# ---------------- MAIN ----------------
-if "logged_in" not in st.session_state:
-    login()
-else:
-    dashboard()
+    # Show History
+    st.markdown("### 📜 History")
+
+    if records:
+        for r in records:
+            st.write(f"{r.timestamp} | {r.activity} | {r.score} | {r.state}")
+    else:
+        st.info("No history yet.")
+
+    # Graph
+    st.markdown("### 📊 Score Trend")
+
+    if len(records) >= 1:
+        scores = [r.score for r in records]
+        st.line_chart(scores)
+    else:
+        st.info("No data for graph.")
