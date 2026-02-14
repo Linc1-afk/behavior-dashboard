@@ -1,63 +1,112 @@
 import streamlit as st
-import time
+from datetime import datetime
+from database import SessionLocal
+from models import User, BehaviorHistory
 
-# --------------------------------------------------
-# Page configuration (must be first Streamlit call)
-# --------------------------------------------------
-st.set_page_config(
-    page_title="Behavior Insight App",
-    page_icon="🧠",
-    layout="centered"
-)
+# -----------------------------
+# Initialize session_state
+# -----------------------------
+if "user" not in st.session_state:
+    st.session_state["user"] = None
 
-# --------------------------------------------------
-# Header
-# --------------------------------------------------
-st.title("🧠 Behavior Insight Engine")
-st.caption("Streamlit app successfully deployed on Render")
+# -----------------------------
+# Signup
+# -----------------------------
+def signup():
+    st.subheader("Sign Up")
+    email = st.text_input("Email", key="signup_email")
+    password = st.text_input("Password", type="password", key="signup_pass")
 
-st.divider()
+    if st.button("Create Account"):
+        db = SessionLocal()
+        existing_user = db.query(User).filter_by(email=email).first()
+        if existing_user:
+            st.error("Email already exists.")
+        else:
+            new_user = User(email=email, password=password)
+            db.add(new_user)
+            db.commit()
+            st.session_state["user"] = email  # auto-login
+            st.success("Account created successfully!")
+            st.rerun()
 
-# --------------------------------------------------
-# App state example
-# --------------------------------------------------
-if "counter" not in st.session_state:
-    st.session_state.counter = 0
+# -----------------------------
+# Login
+# -----------------------------
+def login():
+    st.subheader("Login")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_pass")
 
-# --------------------------------------------------
-# Main content
-# --------------------------------------------------
-st.subheader("Interactive Demo")
+    if st.button("Login"):
+        db = SessionLocal()
+        user = db.query(User).filter_by(email=email, password=password).first()
+        if user:
+            st.session_state["user"] = email
+            st.success(f"Welcome {email}!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid password or email")
 
-st.write(
-    "This is a working Streamlit app. "
-    "If you can see this page, your deployment is **successful** ✅"
-)
+# -----------------------------
+# Dashboard
+# -----------------------------
+def dashboard():
+    st.subheader(f"Welcome {st.session_state['user']}")
+    st.write("Here you can add activity, score, and state.")
 
-col1, col2 = st.columns(2)
+    db = SessionLocal()
 
-with col1:
-    if st.button("➕ Increase counter"):
-        st.session_state.counter += 1
+    # Add new activity
+    st.markdown("### Add New Activity")
+    activity = st.text_input("Activity", key="act")
+    score = st.number_input("Score", min_value=0, max_value=100, key="score")
+    state = st.text_input("State", key="state")
 
-with col2:
-    if st.button("🔄 Reset counter"):
-        st.session_state.counter = 0
+    if st.button("Save Activity"):
+        if activity.strip() == "":
+            st.error("Activity cannot be empty.")
+        else:
+            new_entry = BehaviorHistory(
+                user_email=st.session_state["user"],
+                timestamp=datetime.now(),
+                activity=activity,
+                score=score,
+                state=state
+            )
+            db.add(new_entry)
+            db.commit()
+            st.success("Activity saved successfully!")
+            st.rerun()
 
-st.success(f"Current counter value: **{st.session_state.counter}**")
+    # Display history
+    st.markdown("### Your History")
+    records = db.query(BehaviorHistory).filter(
+        BehaviorHistory.user_email == st.session_state["user"]
+    ).order_by(BehaviorHistory.timestamp.desc()).all()
 
-# --------------------------------------------------
-# Simulated processing section
-# --------------------------------------------------
-st.subheader("Processing Example")
+    if records:
+        for r in records:
+            st.write(f"{r.timestamp} | {r.activity} | Score: {r.score} | State: {r.state}")
+    else:
+        st.info("No behavior history found yet.")
 
-if st.button("Run analysis"):
-    with st.spinner("Analyzing behavior patterns..."):
-        time.sleep(2)
-    st.success("Analysis complete 🎉")
+# -----------------------------
+# Main App
+# -----------------------------
+def main():
+    st.title("Behavior Tracker App")
 
-# --------------------------------------------------
-# Footer
-# --------------------------------------------------
-st.divider()
-st.caption("Deployed with Streamlit • Hosted on Render")
+    if st.session_state["user"]:
+        dashboard()
+    else:
+        st.write("Please sign up or log in.")
+        signup()
+        st.markdown("---")
+        login()
+
+# -----------------------------
+# Run the app
+# -----------------------------
+if __name__ == "__main__":
+    main()
